@@ -1,0 +1,41 @@
+{
+  "name": "reactive-js",
+  "version": "1.0.0",
+  "author": "Junihor Moran",
+  "license": "MIT",
+  "description": "A minimal reactivity system",
+  "main": "dist/reactive.cjs.js",
+  "module": "dist/reactive.esm.js",
+  "browser": "dist/reactive.umd.js",
+  "unpkg": "dist/reactive.min.js",
+  "jsdelivr": "dist/reactive.min.js",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "test": "vitest",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "reactivity",
+    "proxy",
+    "computed",
+    "ref",
+    "watch"
+  ],
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@vitest/coverage-v8": "^3.1.2",
+    "rollup": "^4.2.0",
+    "vite": "^6.3.3",
+    "vite-plugin-compression": "^0.5.1",
+    "vitest": "^3.1.2"
+  }
+}
