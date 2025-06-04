@@ -22,7 +22,7 @@ export const ERRORS = {
 // Global state for tracking effects and dependencies
 const effectStack = []; // Stack to track currently running effects
 const targetMap = new WeakMap(); // Maps objects to their dependency maps
-const reactiveCache = new WeakMap(); // Cache for reactive proxies to prevent duplicate proxies
+const reactiveCache = new WeakMap(); // Cache for reactive proxies to prevent duplicate proxies// Track all active effects for cleanup
 const RAW = Symbol("raw"); // Symbol to store the original object in proxies
 const CIRCULAR_CHECK = Symbol("circular_check"); // Symbol for circular reference detection
 
