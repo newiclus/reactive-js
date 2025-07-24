@@ -1,4 +1,27 @@
 /**
+ * @license MIT
+ * Copyright (c) 2024 Junihor Moran
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/**
  * ReactiveJS - A minimal reactivity system
  * This implementation provides core reactivity features similar to Vue.js
  * including reactive objects, effects, refs, computed properties, and watchers
@@ -22,29 +45,35 @@ export const ERRORS = {
 // Global state for tracking effects and dependencies
 const effectStack = []; // Stack to track currently running effects
 const targetMap = new WeakMap(); // Maps objects to their dependency maps
-const reactiveCache = new WeakMap(); // Cache for reactive proxies to prevent duplicate proxies// Track all active effects for cleanup
+const reactiveCache = new WeakMap(); // Cache for reactive proxies to prevent duplicate proxies
 const RAW = Symbol("raw"); // Symbol to store the original object in proxies
 const CIRCULAR_CHECK = Symbol("circular_check"); // Symbol for circular reference detection
 
 /**
- * Validates if an object can be made reactive
+ * Validates if an object can be made reactive (simplified version)
  * @param {any} obj - The object to validate
  * @throws {Error} If the object is invalid for reactivity
  */
-function validateReactiveTarget(obj, depth = 0) {
-  if (depth >= MAX_RECURSION_DEPTH) {
-    console.error(ERRORS.MAX_RECURSION);
-    throw new Error(ERRORS.MAX_RECURSION);
-  }
-
+function validateReactiveTarget(obj) {
   if (obj === null || typeof obj !== "object") {
-    console.error(ERRORS.INVALID_TYPE);
     throw new Error(ERRORS.INVALID_TYPE);
   }
 
-  // Check for circular references
+  // Check for circular references (always check for safety)
+  checkCircularReferences(obj);
+}
+
+/**
+ * Checks for circular references in development mode
+ * @param {Object} obj - The object to check
+ * @param {number} depth - Current recursion depth
+ */
+function checkCircularReferences(obj, depth = 0) {
+  if (depth >= MAX_RECURSION_DEPTH) {
+    throw new Error(ERRORS.MAX_RECURSION);
+  }
+
   if (obj[CIRCULAR_CHECK]) {
-    console.error(ERRORS.CIRCULAR_REF);
     throw new Error(ERRORS.CIRCULAR_REF);
   }
 
@@ -54,13 +83,13 @@ function validateReactiveTarget(obj, depth = 0) {
     if (Array.isArray(obj)) {
       obj.forEach((item) => {
         if (item && typeof item === "object") {
-          validateReactiveTarget(item, depth + 1);
+          checkCircularReferences(item, depth + 1);
         }
       });
     } else {
       Object.values(obj).forEach((value) => {
         if (value && typeof value === "object") {
-          validateReactiveTarget(value, depth + 1);
+          checkCircularReferences(value, depth + 1);
         }
       });
     }
@@ -79,7 +108,6 @@ function validateReactiveTarget(obj, depth = 0) {
  */
 export function effect(fn) {
   if (effectStack.length >= MAX_EFFECT_STACK_SIZE) {
-    console.error(ERRORS.MAX_STACK);
     throw new Error(ERRORS.MAX_STACK);
   }
 
@@ -116,10 +144,12 @@ export function effect(fn) {
  * This prevents memory leaks and ensures clean dependency tracking.
  */
 function cleanup(effectFn) {
-  for (const dep of effectFn.deps) {
-    dep.delete(effectFn);
+  if (effectFn.deps) {
+    for (const dep of effectFn.deps) {
+      dep.delete(effectFn);
+    }
+    effectFn.deps = [];
   }
-  effectFn.deps = [];
 }
 
 /**
@@ -173,15 +203,15 @@ function trigger(target, key) {
 }
 
 /**
- * Creates a reactive proxy for an object with depth control
+ * Unified proxy creation function
  * @param {Object} obj - The object to make reactive
- * @param {number} depth - Current recursion depth
+ * @param {Object} options - Configuration options
  * @returns {Proxy} - A reactive proxy of the object
- * @throws {Error} If maximum recursion depth is exceeded
  */
-function createReactiveProxy(obj, depth = 0) {
+function createProxy(obj, options = {}) {
+  const { shallow = false, readonly = false, depth = 0 } = options;
+
   if (depth >= MAX_RECURSION_DEPTH) {
-    console.error(ERRORS.MAX_RECURSION);
     throw new Error(ERRORS.MAX_RECURSION);
   }
 
@@ -189,30 +219,33 @@ function createReactiveProxy(obj, depth = 0) {
     return reactiveCache.get(obj);
   }
 
-  const proxy = new Proxy(obj, {
+  const handlers = {
     get(target, key, receiver) {
       if (key === RAW) return target;
       const result = Reflect.get(target, key, receiver);
       track(target, key);
-      return typeof result === "object" && result !== null
-        ? createReactiveProxy(result, depth + 1)
-        : result;
+
+      if (!shallow && typeof result === "object" && result !== null) {
+        return createProxy(result, { ...options, depth: depth + 1 });
+      }
+      return result;
     },
+
     set(target, key, value, receiver) {
-      if (Object.isFrozen(target)) {
+      if (readonly || Object.isFrozen(target)) {
         console.warn(ERRORS.READONLY);
         return true;
       }
       const oldValue = target[key];
-      const newValue = value;
-      const result = Reflect.set(target, key, newValue, receiver);
-      if (oldValue !== newValue) {
+      const result = Reflect.set(target, key, value, receiver);
+      if (oldValue !== value) {
         trigger(target, key);
       }
       return result;
     },
+
     deleteProperty(target, key) {
-      if (Object.isFrozen(target)) {
+      if (readonly || Object.isFrozen(target)) {
         console.warn(ERRORS.READONLY);
         return true;
       }
@@ -223,8 +256,9 @@ function createReactiveProxy(obj, depth = 0) {
       }
       return result;
     },
-  });
+  };
 
+  const proxy = new Proxy(obj, handlers);
   reactiveCache.set(obj, proxy);
   return proxy;
 }
@@ -240,7 +274,7 @@ function createReactiveProxy(obj, depth = 0) {
 export function reactive(obj) {
   try {
     validateReactiveTarget(obj);
-    return createReactiveProxy(obj);
+    return createProxy(obj);
   } catch (error) {
     console.error("Error creating reactive object:", error);
     throw error;
@@ -248,7 +282,7 @@ export function reactive(obj) {
 }
 
 /**
- * Creates a reactive reference
+ * Creates a reactive reference (simplified implementation)
  * @param {any} value - The initial value
  * @returns {Object} - A reactive reference object
  *
@@ -256,19 +290,24 @@ export function reactive(obj) {
  * Useful for making primitive values reactive.
  */
 export function ref(value) {
-  const wrapper = reactive({ value });
-  return {
+  const refObj = {
+    _value: value,
     get value() {
-      return wrapper.value;
+      track(refObj, "value");
+      return this._value;
     },
     set value(newValue) {
-      wrapper.value = newValue;
+      if (this._value !== newValue) {
+        this._value = newValue;
+        trigger(refObj, "value");
+      }
     },
   };
+  return refObj;
 }
 
 /**
- * Creates a computed property
+ * Creates a computed property (improved implementation)
  * @param {Function} getter - The function that computes the value
  * @returns {Object} - A computed reference object
  *
@@ -278,23 +317,26 @@ export function ref(value) {
 export function computed(getter) {
   let cachedValue;
   let dirty = true;
-  let runner;
+  let computedEffect;
 
   const computedRef = {
     get value() {
       if (dirty) {
-        if (!runner) {
-          runner = effect(() => {
+        if (!computedEffect) {
+          computedEffect = effect(() => {
             cachedValue = getter();
-            dirty = false;
           });
         } else {
-          runner();
+          cachedValue = getter();
         }
+        dirty = false;
       }
       return cachedValue;
     },
   };
+
+  // Don't create any effects during initialization
+  // The effect will be created only when the value is first accessed
 
   return computedRef;
 }
@@ -327,15 +369,7 @@ export function watch(source, callback) {
  * Useful for ensuring immutability of certain objects.
  */
 export function readonly(obj) {
-  return new Proxy(obj, {
-    get(target, key, receiver) {
-      return Reflect.get(target, key, receiver);
-    },
-    set() {
-      console.warn("Cannot modify readonly object");
-      return true;
-    },
-  });
+  return createProxy(obj, { readonly: true });
 }
 
 /**
@@ -348,32 +382,7 @@ export function readonly(obj) {
  */
 export function shallowReactive(obj) {
   if (typeof obj !== "object" || obj === null) return obj;
-
-  if (reactiveCache.has(obj)) {
-    return reactiveCache.get(obj);
-  }
-
-  const proxy = new Proxy(obj, {
-    get(target, key, receiver) {
-      if (key === RAW) return target;
-      const result = Reflect.get(target, key, receiver);
-      track(target, key);
-      return result; // No recursive reactivity
-    },
-
-    set(target, key, value, receiver) {
-      const oldValue = target[key];
-      const newValue = value;
-      const result = Reflect.set(target, key, newValue, receiver);
-      if (oldValue !== newValue) {
-        trigger(target, key);
-      }
-      return result;
-    },
-  });
-
-  reactiveCache.set(obj, proxy);
-  return proxy;
+  return createProxy(obj, { shallow: true });
 }
 
 /**
@@ -405,7 +414,7 @@ export function isRef(value) {
   return Boolean(
     value &&
       typeof value === "object" &&
-      "value" in value &&
+      "_value" in value &&
       Object.getOwnPropertyDescriptor(value, "value")?.get
   );
 }

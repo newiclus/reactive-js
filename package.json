@@ -1,37 +1,29 @@
 {
   "name": "reactive-js",
   "version": "1.0.0",
-  "author": "Junihor Moran",
-  "license": "MIT",
-  "description": "A minimal reactivity system",
-  "main": "dist/reactive.cjs.js",
-  "module": "dist/reactive.esm.js",
-  "browser": "dist/reactive.umd.js",
-  "unpkg": "dist/reactive.min.js",
-  "jsdelivr": "dist/reactive.min.js",
-  "files": [
-    "dist"
-  ],
+  "description": "A minimal and efficient reactivity system inspired by Vue.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "rollup -c",
-    "build:watch": "rollup -c -w",
     "test": "vitest",
-    "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build",
-    "lint": "eslint . --ext .js,.ts",
-    "lint:fix": "eslint . --ext .js,.ts --fix",
-    "lint:watch": "eslint . --ext .js,.ts --watch"
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "build": "rollup -c",
+    "build:watch": "rollup -c --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "keywords": [
+    "reactive",
     "reactivity",
+    "vue",
     "proxy",
+    "effects",
     "computed",
-    "ref",
-    "watch",
-    "effect"
+    "refs"
   ],
+  "author": "Junihor Moran",
+  "license": "MIT",
   "devDependencies": {
     "@eslint/css": "^0.7.0",
     "@eslint/js": "^9.25.1",
@@ -49,5 +41,11 @@
     "vite": "^6.3.3",
     "vite-plugin-compression": "^0.5.1",
     "vitest": "^3.1.2"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/reactive.esm.js",
+      "require": "./dist/reactive.cjs.js"
+    }
   }
-}
+} 
